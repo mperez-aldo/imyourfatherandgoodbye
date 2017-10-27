@@ -1,5 +1,4 @@
-import React, { PropTypes, Component } from 'react';
-import classnames from 'classnames';
+import React, { Component } from 'react';
 
 class NotFound extends Component {
 	render(){
@@ -7,4 +6,4 @@ class NotFound extends Component {
 	}
 }
 
-export default App;
+export default NotFound;

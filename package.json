@@ -5,6 +5,7 @@
   "main": "app/index.html",
   "scripts": {
     "start": "react-scripts start",
+    "start:server": "node server",
     "build": "react-scripts build"
   },
   "eslintConfig": {
@@ -34,12 +35,16 @@
   "dependencies": {
     "classnames": "^2.2.5",
     "express": "^4.15.5",
+    "firebase": "^4.5.0",
+    "firebase-admin": "^5.4.3",
     "morgan": "^1.9.0",
     "react": "^15.2.1",
     "react-dom": "^15.2.1",
-    "react-router": "^2.6.1"
+    "react-router": "^2.6.1",
+    "whatwg-fetch": "^2.0.3"
   },
   "devDependencies": {
+    "babel-plugin-transform-class-properties": "^6.24.1",
     "react-scripts": "0.2.1"
   }
 }
