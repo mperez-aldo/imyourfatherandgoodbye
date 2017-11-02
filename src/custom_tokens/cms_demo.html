@@ -1,0 +1,118 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Firebase query</title>
+    <style>
+      body { font: 100%  "Helvetica Neue", Tahoma, Verdana, sans-serif; }
+      pre { font-family: "Courier New", Courierm monospace; font-size: 1rem; background: #efefef; padding: 1rem }
+      .result {  background: black; color: white; font-size:14px;}
+      span { color: red; }
+    </style>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.0.0/jquery.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/3.1.0/firebase.js"></script>
+    <script>
+      // Initialize Firebase
+      var config = {
+        apiKey: "AIzaSyA8v1Jjs4Zeg_pKcUnbrNfoC1cUr5PLaZ4",
+        authDomain: "mperez-dev.firebaseapp.com",
+        databaseURL: "https://mperez-dev.firebaseio.com",
+        storageBucket: "mperez-dev.appspot.com",
+      };
+      firebase.initializeApp(config);	  
+	  
+      // getPaths is a custom function to join multiple paths.  After all paths are joined "merged" a callback is then called
+      function getPaths(paths, callback) {
+        var returnCount = 0,
+            expectedCount = paths.length,
+            mergedObject = {},
+            ref;
+
+        paths.forEach(function (path) {
+          if (path.filter) {          
+            ref = firebase
+                    .database()
+                    .ref(path.path)
+                    .orderByChild(path.filter.prop)
+                    .equalTo(path.filter.val);
+          } else {
+            ref = firebase
+                    .database()
+                    .ref(path.path);
+          }                  
+
+          ref.once('value',
+            // success
+            function (snap) {
+              // add it to the merged data
+              $.extend(mergedObject, snap.val());
+              
+              // when all paths have resolved, we invoke
+              // the callback (jQuery.when would be handy here)
+              if (++returnCount === expectedCount) {
+                  callback(null, mergedObject);
+              }
+            },
+            // error
+            function (error) {
+              returnCount = expectedCount + 1; // abort counters
+              callback(error, null);
+            }
+          );
+        });      
+      }
+
+    var ref;
+    var queryRef;
+    var token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiIxMTU1MjkxNzUyMTI4OTYwNjM5MDkiLCJpYXQiOjE1MDkxMzcwNjAsImV4cCI6MTUwOTE0MDY2MCwiYXVkIjoiaHR0cHM6Ly9pZGVudGl0eXRvb2xraXQuZ29vZ2xlYXBpcy5jb20vZ29vZ2xlLmlkZW50aXR5LmlkZW50aXR5dG9vbGtpdC52MS5JZGVudGl0eVRvb2xraXQiLCJpc3MiOiJtcGVyZXpAbXBlcmV6LWRldi5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbSIsInN1YiI6Im1wZXJlekBtcGVyZXotZGV2LmlhbS5nc2VydmljZWFjY291bnQuY29tIn0.GTnuWbihwnP9wUIw1Cz4dfAOnLOBSznIAckFZ-siYjp5kNTgHtnaATqKWer_eHXOwzMWyVkKv16zaD7mXuHCN4uJdHaIAph1G0EUuf0pDOdsjvAMSvh_0x5EhcU1-D6IKh1NdeTq3nzYilhxuU5CEuiNSbgu4CdINdm9ja-rYvUzlWfnc8AM6uvzD_yHeqAUBpe-AFvEzEcMivAYLe1FQbARYKD4xUHZfcK_C7VvIFDJMUK2Pk5r2MujWco__Dvz93VV-7PAT0_x3UQZGhPks4-tCDa2qeQ4ej_2YGn2xJ4qYgAwC8A90RY84Ryx0JyJ-dTLvlT8zmANM3WnAJcPwQ";
+
+    function testLogin(){
+        /*
+        firebase.auth().signInWithCustomToken(token).catch(function(error) {
+          // Handle Errors here.
+          var errorCode = error.code;
+          var errorMessage = error.message;
+          alert("Problem loggin in = " + error.code + "-" + error.message);
+          throw(error.code + "-" + error.message);
+          // ...
+        }).then(function (){
+            alert("all good my friend");
+            ref = firebase.database().ref("menu-tree/web/aldo/ca/en/default");
+            ref.on("value", function(querySnapshot) {
+              $('#example1-json').text(JSON.stringify(querySnapshot.val(), null, 5));
+            });
+        });
+        */
+
+        ref = firebase.database().ref("jobs/-KxtbSl72R8CuN5oTbd2/category-mapping");
+        queryRef = ref.orderByChild("url_source").equalTo("/women/new-arrivals/now-trending").limitToLast(1);
+        queryRef.once("value", function(querySnapshot) {
+           $('#example1-json').text(JSON.stringify(querySnapshot.val(), null, 5));
+        });
+
+    }
+    
+    testLogin();
+
+    </script>    
+  </head>
+
+  <body>
+	 <h1>Examples of CMS Firebase Queries</h1>
+    	<div id="example1">
+    		<h2>Default Menu</h2>
+    		<h3>Code</h3>
+<pre>
+ref = firebase.database().ref("menu-tree/web/aldo/ca/en/<span>default</span>");
+ref.on("value", function(querySnapshot) {
+  $('#example1-json').text(JSON.stringify(querySnapshot.val(), null, 5));
+  <span>// querySnapshot.val()</span>
+});
+</pre>
+    		<h3>Results</h3>
+    		<pre id="example1-json" class="result"></pre>
+    	</div>
+    	
+
+
+  </body>
+</html>

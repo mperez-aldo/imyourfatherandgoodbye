@@ -1,12 +1,8 @@
 import React, { Component } from 'react';
 
-import GenerateCategoryMappingJob from './generate_category_mapping';
-import GenerateLinksJob from './generate_links';
-import ComparePathsJob from './compare_paths';
+import GenerateCategoryURLJob from './generate_category_urls';
 
-const categoryMappingOption = 1;
-const generateLinksOption 	= 2;
-const comparePathsOption 	= 3;
+const categoryURLs = 1;
 
 class Job extends Component {
 
@@ -20,20 +16,12 @@ class Job extends Component {
 	render(){
 		var view;
 		switch(this.state.option){
-			case categoryMappingOption:{
-				view = <GenerateCategoryMappingJob firebase={this.props.firebase}></GenerateCategoryMappingJob>
-				break;
-			}
-			case generateLinksOption:{
-				view = <GenerateLinksJob firebase={this.props.firebase}></GenerateLinksJob>
-				break;
-			}
-			case comparePathsOption:{
-				view = <ComparePathsJob firebase={this.props.firebase}></ComparePathsJob>
+			case categoryURLs:{
+				view = <GenerateCategoryURLJob firebase={this.props.firebase}></GenerateCategoryURLJob>
 				break;
 			}
 			default:{
-				view = <GenerateCategoryMappingJob firebase={this.props.firebase}></GenerateCategoryMappingJob>
+				view = <GenerateCategoryURLJob firebase={this.props.firebase}></GenerateCategoryURLJob>
 				break;
 			}
 		}
