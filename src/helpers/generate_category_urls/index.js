@@ -1,4 +1,5 @@
 import 'whatwg-fetch';
+var firebase = null;
 const composerURL = "https://uat-comp.aldoshoes.com/api/categories";
 const jobsPath = "jobs";
 const categoryMappingPath = "category-mapping";
@@ -16,7 +17,31 @@ function checkStatus(response) {
 function parseJSON(response) {
   return response.json();
 }
-/* Gets the category mapping from composer and creates a child element of the job */
+/* Gets the category mapping from Composer */
+function getCategoryMapping(destinationCountry, destinationLanguage){
+	return new Promise(function(resolve, reject) {
+		fetch(composerURL, {
+		  method: 'GET',
+		  headers: {
+		    'x-aldo-region': destinationCountry,
+		    'x-aldo-lang' : destinationLanguage,
+		    'Access-Control-Allow-Origin': '*'
+		  }
+		})
+		.then(checkStatus)
+		.then(parseJSON)
+	  	.then(function(data) {
+			console.log('Composer API call succeeded');
+			resolve(data);
+	  	})
+	  	.catch(function(error) {
+     		console.log('Composer request failed', error);
+     		reject(error);
+		});
+	});
+}
+
+/* Creates the category mapping as a child element of the job */
 function generateCategoryMapping(jobRef, data, sourceCountry, sourceLanguage, sourceStoreFront){
 	var promises = [];
 	for (let [key, value] of Object.entries(data)){
@@ -33,16 +58,13 @@ function generateCategoryMapping(jobRef, data, sourceCountry, sourceLanguage, so
 			.then(parseJSON)
 		  	.then(function(responseData) { 
 				// Add both urls to the category
-				promises.push(new Promise(function(resolve, reject) { 
-					jobRef.child(categoryMappingPath).push({'url_destination' : '/' + key , 
-														   'url_source' : "/" + responseData[sourceStoreFront],
-														   'categoryID' : value.categoryId,
-														   'title' : value.title })
-					.then(function(snapshot){
-						resolve(snapshot.val());
-				    });
-				}));
-				resolve(responseData);
+				jobRef.child(categoryMappingPath).push({'url_destination' : '/' + key , 
+													   'url_source' : "/" + responseData[sourceStoreFront],
+													   'categoryID' : value.categoryId,
+													   'title' : value.title })
+				.then(function(snapshot){
+					resolve(responseData);
+			    });
 		  	})
 			.catch(function(error) {
 	 			console.log('request failed', error);
@@ -50,133 +72,125 @@ function generateCategoryMapping(jobRef, data, sourceCountry, sourceLanguage, so
 			});
 		}));
 	}
-	Promise.all(promises)
-	.then(data => {
-		console.log("Category mapping generation completed", data);
-	});
+	return promises;
 }
 /* Copies the path from the corresponding store front inside of the job path */
-function generatePaths(firebase, jobRef, brand, country, language){
+function generatePaths(jobRef, brand, country, language){
 	var promises = [];
 	var sourceRef;
-	sourcePaths.forEach(function(value){
-		promises.push(new Promise(function(resolve, reject) {
-			sourceRef = firebase.database().ref(value + "/web/" + brand + "/" + country + "/" + language + "/default");
-			sourceRef.once("value").then(function(snapshot) {
-				jobRef.child(value).push(snapshot.val())
-				.then(function(data){
-					resolve(data);
+	try{
+		sourcePaths.forEach(function(value){
+			promises.push(new Promise(function(resolve, reject) {
+				sourceRef = firebase.database().ref(value + "/web/" + brand + "/" + country + "/" + language + "/default");
+				sourceRef.once("value").then(function(snapshot) {
+					jobRef.child(value).push(snapshot.val())
+					.then(function(data){
+						resolve(data);
+					});
 				});
-			});
-		}));
-	});
-	Promise.all(promises)
-	.then(data => {
-		console.log("Source paths generation completed", data);
-	});
+			}));
+		});
+		return promises;
+	}catch(error) {
+ 		console.log('Container paths generation failed', error);
+	}
 }
+
+
+/* URL replacement */
 /* Updates the path node URL with the value found in the mapping */ 
-function translateNodeURL(firebase, jobId, objectRef, sourceURL, sourceAttr){
+function translateNodeURL(resolve, reject, jobId, objectRef, sourceURL, sourceAttr){
 	var pathRef = firebase.database().ref("/jobs/" + jobId + "/" + categoryMappingPath).orderByChild("url_source")
 				  .equalTo(sourceURL).limitToLast(1);
 	pathRef.once("value", function(querySnapshot) {
 		if(querySnapshot.val() != null){
         	console.log("Exito - " + sourceURL + " - " + sourceAttr + " - " + JSON.stringify(querySnapshot.val()) + "");
+        	objectRef.update({[sourceAttr] : querySnapshot["url_destination"] });
         }
-    });
-	
-    //objectRef.update({[sourceAttr] : querySnapshot["url_destination"] });   
-}
-
-/* Recursive search within the objects and attributes */
-function recursiveURLReplace(firebase, objectSource, parentObjectRef, jobId, promises) {
-	return new Promise(function(resolve, reject) {
-	    if (typeof objectSource === 'string') {
-			return null;
-	    }
-	    if (typeof objectSource === 'object') {
-	        if (objectSource === null) {
-	            return null;
-	        }
-	        Object.keys(objectSource).forEach(function (property) {
-				if( (property === "url") || (property === "link") ){
-					promises.push(new Promise(function(resolve, reject) {
-						translateNodeURL(firebase, jobId, objectSource, objectSource[property], property);
-					}));
-				}
-				promises.push(new Promise(function(resolve, reject) {
-	            	objectSource[property] = recursiveURLReplace(firebase,objectSource[property], objectSource, 
-	            												 jobId, promises);
-	            }));
-	        });
-	        return objectSource;
-	    }
+        resolve(querySnapshot);
+    })
+    .catch(function(error) {
+ 		console.log('Node URL update failed ', error);
+ 		reject(error);
 	});
 }
+/* Recursive search within the objects and attributes */
+function recursiveURLReplace(resolve, reject, objectSource, parentObjectRef, jobId, promises) {
+    if (typeof objectSource === 'string') {
+		resolve(null);
+    }
+    if (typeof objectSource === 'object') {
+        if (objectSource === null) {
+            resolve(null);
+        }
+        Object.keys(objectSource).forEach(function (property) {
+			if( (property === "url") || (property === "link") ){
+				promises.push(new Promise(function(resolve, reject) {
+					translateNodeURL(resolve, reject, jobId, objectSource, objectSource[property], property);
+				}));
+			}
+			promises.push(new Promise(function(resolve, reject) {
+            	objectSource[property] = recursiveURLReplace(resolve, reject, objectSource[property], objectSource, 
+            												 jobId, promises);
+            }));
+        });
+    }
+}
 /* Recursively translate all child URLs and Links */
-function translatePaths(firebase, jobRef, jobId){
+function translatePaths(jobRef, jobId){
 	var promises = [];
-	return new Promise(function(resolve, reject) {
-		var pathRef;
+	var pathRef;
+	try{
 		sourcePaths.forEach(function(value){
 			promises.push(new Promise(function(resolve, reject) {
 				pathRef = jobRef.child(value);
 				pathRef.on("value", function(querySnapshot) {
-			    	recursiveURLReplace(firebase, querySnapshot.val(), querySnapshot, jobId, promises)
-			    	.then(function(){
-						resolve(querySnapshot.val());
-			    	});
+			    	recursiveURLReplace(resolve, reject, querySnapshot.val(), querySnapshot, jobId, promises);
 		  		});
 			}));
 		});
-		Promise.all(promises)
-		.then(data => {
-			console.log("Paths translation completed", data);
-			resolve(data);
-   		});
-	});
+  		return promises;
+	}catch(error) {
+ 		console.log('Path URLs translation failed', error);
+	}
 }
 
+
 /* Main JOB function */
-export function executeJOB(firebase, targetArea, brand, sourceStoreFront, destinationStoreFront){
+export function executeJOB(firebaseConn, targetArea, brand, sourceStoreFront, destinationStoreFront){
+	firebase = firebaseConn;
 	var sourceCountry = sourceStoreFront.substring(0,2);
 	var destinationCountry = destinationStoreFront.substring(0,2);
 	var sourceLanguage = sourceStoreFront.substring(sourceStoreFront.indexOf("/") + 1,sourceStoreFront.length);
 	var destinationLanguage = destinationStoreFront.substring(destinationStoreFront.indexOf("/") + 1,destinationStoreFront.length);
 	console.log("Country = " + destinationCountry + " Language = " + destinationLanguage);
-	fetch(composerURL, {
-	  method: 'GET',
-	  headers: {
-	    'x-aldo-region': destinationCountry,
-	    'x-aldo-lang' : destinationLanguage,
-	    'Access-Control-Allow-Origin': '*'
-	  }
-	})
-	.then(checkStatus)
-	.then(parseJSON)
-  	.then(function(data) {
-    	// Creates a new job and adds the data inside
-    	console.log('Composer API Request succeeded with JSON response');
-		var jobRef = firebase.database().ref(jobsPath);
-
-		jobRef.push({'date' : new Date().toLocaleDateString(), 'type': 'generate_category_urls'})
-		.then(function(snapshot){
+	// Creates a new job and adds the data inside    	
+	var jobRef = firebase.database().ref(jobsPath);
+	jobRef.push({'date' : new Date().toLocaleDateString(), 'type': 'generate_category_urls'})
+	.then(function(snapshot){
+		// Gets the category mapping from Composer for the destination Store front
+		getCategoryMapping(destinationCountry,destinationLanguage)
+		.then(function(composerData){
 			// Creates the category mapping node inside of the job
-			generateCategoryMapping(snapshot,data,sourceCountry,sourceLanguage,sourceStoreFront)
+			var promisesC = generateCategoryMapping(snapshot,composerData,sourceCountry,sourceLanguage,sourceStoreFront);
+			Promise.all(promisesC)
 			.then(function(){
 				// Creates all the firebase paths containing URLs, inside of the job
-				generatePaths(firebase, snapshot, brand, destinationCountry, destinationLanguage)
+				var promisesP = generatePaths(snapshot, brand, destinationCountry, destinationLanguage);
+				Promise.all(promisesP)
 				.then(function(){
 					// Recursively updates the paths to translate the URLs	
-					translatePaths(firebase, snapshot, "" + snapshot.key);
+					var promisesT = translatePaths(snapshot, "" + snapshot.key);
+					Promise.all(promisesT)
+					.then(function(){
+
+						console.log("Job ended");
+					});
 				});
-			});
-		})
-		.catch(function(error) {
-     		console.log('General error ', error);
+   			});
 		});
-  	})	
-  	.catch(function(error) {
-     	console.log('Composer request failed', error);
+  	})
+	.catch(function(error) {
+ 		console.log('General error ', error);
 	});
 }
